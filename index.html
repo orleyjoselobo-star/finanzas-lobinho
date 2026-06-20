@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="Finanzas">
 <meta name="theme-color" content="#0D1117">
 <link rel="icon" type="image/svg+xml" href="icon.svg">
+ <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon.svg"> 
 <style>
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
@@ -383,36 +384,13 @@ function selStyle(){
 
 render();
 
-// ---------- PWA: manifest + service worker inline ----------
-try {
-  const manifest = {
-    name: "Mis Finanzas",
-    short_name: "Finanzas",
-    start_url: ".",
-    display: "standalone",
-    background_color: "#0D1117",
-    theme_color: "#0D1117",
-    icons: [{ src: "icon.svg", sizes: "100x100", type: "image/svg+xml" }]
-  };
-  const blob = new Blob([JSON.stringify(manifest)], { type: "application/json" });
-  const link = document.createElement("link");
-  link.rel = "manifest";
-  link.href = URL.createObjectURL(blob);
-  document.head.appendChild(link);
-} catch(e) {}
-
 if ("serviceWorker" in navigator) {
-  try {
-    const swCode = `
-      self.addEventListener("install", e => self.skipWaiting());
-      self.addEventListener("fetch", e => {
-        e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
-      });
-    `;
-    const swBlob = new Blob([swCode], { type: "application/javascript" });
-    navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(()=>{});
-  } catch(e) {}
+  navigator.serviceWorker.register("sw.js").catch(()=>{});
 }
-</script>
+ </script>
 </body>
 </html>
+
+
+
+

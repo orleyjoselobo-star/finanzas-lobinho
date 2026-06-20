@@ -343,6 +343,58 @@ function agregarCat(){
 }
 function eliminarCat(id){ state.cats = state.cats.filter(c=>c.id!==id); save("fp_cats", state.cats); render(); }
 
+// ---------- Respaldo: exportar / importar ----------
+function exportarDatos(){
+  const backup = {
+    version: 1,
+    fecha: new Date().toISOString(),
+    txs: state.txs,
+    cats: state.cats,
+    presupuestos: state.presupuestos
+  };
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const fechaArchivo = new Date().toISOString().slice(0,10);
+  a.href = url;
+  a.download = `finanzas-backup-${fechaArchivo}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function dispararImportar(){
+  document.getElementById("inputImportar").click();
+}
+
+function importarDatos(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const data = JSON.parse(e.target.result);
+      if(!data.txs || !data.cats){ alert("El archivo no tiene el formato correcto."); return; }
+      const confirmar = confirm("Esto reemplazará tus datos actuales con los del respaldo. ¿Continuar?");
+      if(!confirmar) return;
+      state.txs = data.txs || [];
+      state.cats = data.cats || CATS_DEFAULT;
+      state.presupuestos = data.presupuestos || [];
+      save("fp_txs", state.txs);
+      save("fp_cats", state.cats);
+      save("fp_presupuestos", state.presupuestos);
+      alert("¡Datos restaurados con éxito!");
+      render();
+    }catch(err){
+      alert("No se pudo leer el archivo. Verifica que sea un respaldo válido.");
+    }
+    input.value = "";
+  };
+  reader.readAsText(file);
+}
+ 
+
 function renderCategorias(){
   const f = state.formCat;
   return `
@@ -370,7 +422,15 @@ function renderCategorias(){
           </div>
         `).join("")}
       </div>
+      
     `).join("")}
+
+    <div style="background:${C.card};border-radius:16px;padding:1.25rem;margin-top:0.5rem;">
+      <div style="font-size:12px;color:${C.textMuted};margin-bottom:10px;">Respaldo de datos</div>
+      <button onclick="exportarDatos()" style="width:100%;padding:10px;border-radius:10px;border:1px solid ${C.accent}55;background:${C.accentDim};color:${C.accent};cursor:pointer;font-weight:600;font-size:13px;margin-bottom:8px;">⬇ Exportar datos</button>
+      <button onclick="dispararImportar()" style="width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.05);color:${C.textSub};cursor:pointer;font-weight:600;font-size:13px;">⬆ Importar datos</button>
+      <input type="file" id="inputImportar" accept="application/json" style="display:none;" onchange="importarDatos(this)" />
+    </div>
   `;
 }
 

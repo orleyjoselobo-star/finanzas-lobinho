@@ -1,4 +1,4 @@
-const CACHE_NAME = "finanzas-v1";
+const CACHE_NAME = "finanzas-v2";
 const FILES_TO_CACHE = ["./", "./index.html", "./icon.svg", "./manifest.json"];
 
 self.addEventListener("install", (e) => {

@@ -86,6 +86,11 @@ const TABS = [
 
 // ---------- render ----------
 function render(){
+  const active = document.activeElement;
+  const activeId = (active && active.id) ? active.id : null;
+  const selStart = active ? active.selectionStart : null;
+  const selEnd = active ? active.selectionEnd : null;
+
   const app = document.getElementById("app");
   let body = "";
   if (state.tab===0) body = renderDashboard();
@@ -106,6 +111,16 @@ function render(){
         </button>`).join("")}
     </nav>
   `;
+
+  if(activeId){
+    const el = document.getElementById(activeId);
+    if(el){
+      el.focus();
+      if(typeof selStart === "number" && el.setSelectionRange){
+        try{ el.setSelectionRange(selStart, selEnd); }catch(e){}
+      }
+    }
+  }
 }
 
 // ---------- Dashboard ----------

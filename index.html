@@ -224,7 +224,7 @@ function renderNuevaTx(){
 
     <div style="background:${C.card};border-radius:16px;padding:1.25rem;margin-bottom:1rem;">
       <div style="font-size:11px;color:${C.textMuted};margin-bottom:6px;">Monto (COP)</div>
-      <input style="${inpStyle()}" placeholder="0" value="${f.monto}" oninput="setFormTx('monto', fmtInputVal(this.value))" />
+      <input id="tx-monto" style="${inpStyle()}" placeholder="0" value="${f.monto}" oninput="setFormTx('monto', fmtInputVal(this.value))" />
     </div>
 
     <div style="background:${C.card};border-radius:16px;padding:1.25rem;margin-bottom:1rem;">
@@ -237,7 +237,7 @@ function renderNuevaTx(){
 
     <div style="background:${C.card};border-radius:16px;padding:1.25rem;margin-bottom:1rem;">
       <div style="font-size:11px;color:${C.textMuted};margin-bottom:6px;">Descripción (opcional)</div>
-      <input style="${inpStyle()}" placeholder="Ej: Mercado del sábado" value="${esc(f.descripcion)}" oninput="setFormTx('descripcion', this.value)" />
+      <input id="tx-descripcion" style="${inpStyle()}" placeholder="Ej: Mercado del sábado" value="${esc(f.descripcion)}" oninput="setFormTx('descripcion', this.value)" />
     </div>
 
     <div style="background:${C.card};border-radius:16px;padding:1.25rem;margin-bottom:1.5rem;">
@@ -317,7 +317,7 @@ function renderPresupuestos(){
         <option value="">Selecciona categoría</option>
         ${catGastos.map(c=>`<option value="${c.id}" ${f.categoria===c.id?"selected":""}>${esc(c.nombre)}</option>`).join("")}
       </select>
-      <input style="${inpStyle()}margin-bottom:8px;" placeholder="Límite mensual (COP)" value="${f.limite}" oninput="setFormPres('limite', fmtInputVal(this.value))" />
+      <input id="pres-limite" style="${inpStyle()}margin-bottom:8px;" placeholder="Límite mensual (COP)" value="${f.limite}" oninput="setFormPres('limite', fmtInputVal(this.value))" />
       <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:${C.textSub};margin-bottom:12px;cursor:pointer;">
         <input type="checkbox" ${f.recurrente?"checked":""} onchange="setFormPres('recurrente', this.checked)" /> Repetir todos los meses
       </label>
@@ -416,7 +416,7 @@ function renderCategorias(){
     <div style="font-size:18px;font-weight:600;margin-bottom:1.25rem;">Categorías</div>
     <div style="background:${C.card};border-radius:16px;padding:1.25rem;margin-bottom:1.25rem;">
       <div style="font-size:12px;color:${C.textMuted};margin-bottom:10px;">Nueva categoría</div>
-      <input style="${inpStyle()}margin-bottom:8px;" placeholder="Nombre" value="${esc(f.nombre)}" oninput="setFormCat('nombre', this.value)" />
+      <input id="cat-nombre" style="${inpStyle()}margin-bottom:8px;" placeholder="Nombre" value="${esc(f.nombre)}" oninput="setFormCat('nombre', this.value)" />
       <div style="display:flex;gap:8px;margin-bottom:8px;">
         <select style="${inpStyle()}flex:1;" onchange="setFormCat('tipo', this.value)">
           <option value="gasto" ${f.tipo==="gasto"?"selected":""}>Gasto</option>

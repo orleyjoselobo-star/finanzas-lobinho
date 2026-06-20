@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Mis Finanzas</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finanzas">
+<meta name="theme-color" content="#0D1117">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+  html,body { background:#0D1117; color:#F0F4FF; font-family:-apple-system,system-ui,sans-serif; height:100%; overflow-x:hidden; }
+  #app { max-width:480px; margin:0 auto; min-height:100vh; position:relative; padding-bottom:80px; }
+  input,select { font-family:inherit; }
+  select { -webkit-appearance:none; appearance:none; }
+  input[type=checkbox]{ width:16px; height:16px; accent-color:#00E5A0; }
+  button { font-family:inherit; }
+  ::-webkit-scrollbar { display:none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+const CATS_DEFAULT = [
+  { id:"alimentacion", nombre:"Alimentación", tipo:"gasto", color:"#00E5A0" },
+  { id:"transporte", nombre:"Transporte", tipo:"gasto", color:"#6C8EFF" },
+  { id:"vivienda", nombre:"Vivienda", tipo:"gasto", color:"#A78BFA" },
+  { id:"salud", nombre:"Salud", tipo:"gasto", color:"#34D399" },
+  { id:"entretenimiento", nombre:"Entretenimiento", tipo:"gasto", color:"#F472B6" },
+  { id:"educacion", nombre:"Educación", tipo:"gasto", color:"#60A5FA" },
+  { id:"ropa", nombre:"Ropa", tipo:"gasto", color:"#FBBF24" },
+  { id:"otros_gasto", nombre:"Otros gastos", tipo:"gasto", color:"#94A3B8" },
+  { id:"salario", nombre:"Salario", tipo:"ingreso", color:"#00E5A0" },
+  { id:"freelance", nombre:"Freelance", tipo:"ingreso", color:"#6C8EFF" },
+  { id:"otros_ingreso", nombre:"Otros ingresos", tipo:"ingreso", color:"#A78BFA" },
+];
+
+const C = {
+  bg:"#0D1117", surface:"#161B27", card:"#1E2538", border:"rgba(255,255,255,0.07)",
+  accent:"#00E5A0", accentDim:"rgba(0,229,160,0.12)", accentBorder:"rgba(0,229,160,0.3)",
+  text:"#F0F4FF", textMuted:"#6B7A99", textSub:"#9BA8C0",
+  red:"#FF5C7A", redDim:"rgba(255,92,122,0.12)", yellow:"#FBBF24"
+};
+
+// ---------- estado ----------
+let state = {
+  tab: 0,
+  mes: thisMonth(),
+  txs: load("fp_txs", []),
+  cats: load("fp_cats", CATS_DEFAULT),
+  presupuestos: load("fp_presupuestos", []),
+  formTx: { tipo:"gasto", monto:"", categoria:"", descripcion:"", fecha:today() },
+  formPres: { categoria:"", limite:"", recurrente:false },
+  formCat: { nombre:"", tipo:"gasto", color:"#00E5A0" },
+  okMsg: false,
+  filtroMes: "todos",
+  filtroTipo: "todos"
+};
+
+function load(key, def){ try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; }catch(e){ return def; } }
+function save(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){} }
+
+function fmt(n){ return new Intl.NumberFormat("es-CO",{style:"currency",currency:"COP",maximumFractionDigits:0}).format(n); }
+function fmtNum(n){ return new Intl.NumberFormat("es-CO",{maximumFractionDigits:0}).format(n); }
+function mesLabel(ym){ const [y,m]=ym.split("-"); return new Date(+y,+m-1).toLocaleDateString("es-CO",{month:"long",year:"numeric"}); }
+function mesCorto(ym){ const [y,m]=ym.split("-"); return new Date(+y,+m-1).toLocaleDateString("es-CO",{month:"short"}); }
+function ymOf(f){ return f.slice(0,7); }
+function today(){ return new Date().toISOString().slice(0,10); }
+function thisMonth(){ return today().slice(0,7); }
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+
+function setState(patch){ state = { ...state, ...patch }; render(); }
+
+const TABS = [
+  { id:0, icon:"⊞", label:"Inicio" },
+  { id:1, icon:"+", label:"" },
+  { id:2, icon:"≡", label:"Historial" },
+  { id:3, icon:"◎", label:"Presupuestos" },
+  { id:4, icon:"⊙", label:"Categorías" },
+];
+
+// ---------- render ----------
+function render(){
+  const app = document.getElementById("app");
+  let body = "";
+  if (state.tab===0) body = renderDashboard();
+  else if (state.tab===1) body = renderNuevaTx();
+  else if (state.tab===2) body = renderHistorial();
+  else if (state.tab===3) body = renderPresupuestos();
+  else if (state.tab===4) body = renderCategorias();
+
+  app.innerHTML = `
+    <div style="padding:1.25rem 1.25rem 0">${body}</div>
+    <nav style="position:fixed;bottom:0;left:0;right:0;max-width:480px;margin:0 auto;background:${C.surface};border-top:1px solid ${C.border};display:flex;padding:0.5rem 0;">
+      ${TABS.map(t => `
+        <button onclick="setState({tab:${t.id}})" style="flex:1;background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 0;">
+          <span style="${t.id===1
+            ? `background:${C.accent};color:${C.bg};border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:300;margin-top:-10px;box-shadow:0 0 16px ${C.accentBorder};`
+            : `font-size:16px;color:${state.tab===t.id ? C.accent : C.textMuted};`}">${t.icon}</span>
+          ${t.id!==1 ? `<span style="font-size:10px;color:${state.tab===t.id ? C.accent : C.textMuted};">${t.label}</span>` : ""}
+        </button>`).join("")}
+    </nav>
+  `;
+}
+
+// ---------- Dashboard ----------
+function renderDashboard(){
+  const txs = state.txs, cats = state.cats, mes = state.mes;
+  const mesesSet = new Set(txs.map(t=>ymOf(t.fecha))); mesesSet.add(thisMonth());
+  const meses = Array.from(mesesSet).sort().reverse();
+
+  const del = txs.filter(t=>ymOf(t.fecha)===mes);
+  const ingresos = del.filter(t=>t.tipo==="ingreso").reduce((s,t)=>s+t.monto,0);
+  const gastos = del.filter(t=>t.tipo==="gasto").reduce((s,t)=>s+t.monto,0);
+  const balance = ingresos - gastos;
+  const recientes = txs.slice(0,5);
+
+  const now = new Date(); const meses6 = [];
+  for(let i=5;i>=0;i--){ const d=new Date(now.getFullYear(),now.getMonth()-i,1); meses6.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`); }
+  const ultimos6 = meses6.map(m=>({ m, g: txs.filter(t=>ymOf(t.fecha)===m&&t.tipo==="gasto").reduce((s,t)=>s+t.monto,0) }));
+  const maxBar = Math.max(...ultimos6.map(x=>x.g),1);
+
+  return `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;">
+      <div>
+        <div style="font-size:12px;color:${C.textMuted};">Balance total</div>
+        <div style="font-size:28px;font-weight:700;color:${balance>=0?C.accent:C.red};letter-spacing:-0.5px;">${fmt(balance)}</div>
+      </div>
+      <select onchange="setState({mes:this.value})" style="${selStyle()}">
+        ${meses.map(m=>`<option value="${m}" ${m===mes?"selected":""}>${mesLabel(m)}</option>`).join("")}
+      </select>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1.25rem;">
+      <div style="background:${C.accentDim};border:1px solid ${C.accent}22;border-radius:14px;padding:0.75rem 1rem;">
+        <div style="font-size:11px;color:${C.accent};margin-bottom:4px;opacity:0.8;">Ingresos</div>
+        <div style="font-size:16px;font-weight:600;color:${C.accent};">${fmt(ingresos)}</div>
+      </div>
+      <div style="background:${C.redDim};border:1px solid ${C.red}22;border-radius:14px;padding:0.75rem 1rem;">
+        <div style="font-size:11px;color:${C.red};margin-bottom:4px;opacity:0.8;">Gastos</div>
+        <div style="font-size:16px;font-weight:600;color:${C.red};">${fmt(gastos)}</div>
+      </div>
+    </div>
+
+    <div style="background:${C.card};border-radius:16px;padding:1rem;margin-bottom:1.25rem;">
+      <div style="font-size:12px;color:${C.textMuted};margin-bottom:12px;">Gastos — últimos 6 meses</div>
+      <div style="display:flex;align-items:flex-end;gap:6px;height:70px;">
+        ${ultimos6.map(({m,g})=>`
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <div style="width:100%;border-radius:4px;background:${m===mes?C.accent:C.accent+"44"};height:${Math.max(Math.round((g/maxBar)*100),4)}%;transition:height 0.3s;"></div>
+            <span style="font-size:9px;color:${m===mes?C.accent:C.textMuted};">${mesCorto(m)}</span>
+          </div>`).join("")}
+      </div>
+    </div>
+
+    <div style="background:${C.card};border-radius:16px;padding:1rem;">
+      <div style="font-size:12px;color:${C.textMuted};margin-bottom:10px;">Últimas transacciones</div>
+      ${recientes.length===0 ? `<div style="font-size:13px;color:${C.textMuted};text-align:center;padding:1rem 0;">Sin transacciones aún</div>` :
+        recientes.map(t=>{
+          const cat = cats.find(c=>c.id===t.categoria);
+          return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid ${C.border};">
+            <div style="width:34px;height:34px;border-radius:10px;background:${(cat?.color||"#888")}22;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <div style="width:8px;height:8px;border-radius:50%;background:${cat?.color||"#888"};"></div>
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.descripcion||cat?.nombre||t.categoria)}</div>
+              <div style="font-size:11px;color:${C.textMuted};">${esc(cat?.nombre||"")} · ${t.fecha}</div>
+            </div>
+            <div style="font-size:13px;font-weight:600;color:${t.tipo==="ingreso"?C.accent:C.red};">${t.tipo==="ingreso"?"+":"-"}${fmt(t.monto)}</div>
+          </div>`;
+        }).join("")}
+    </div>
+  `;
+}
+
+// ---------- Nueva Transacción ----------
+function setFormTx(k,v){ state.formTx = {...state.formTx, [k]:v, ...(k==="tipo"?{categoria:""}:{})}; render(); }
+function fmtInputVal(v){ const n = v.replace(/\D/g,""); return n ? fmtNum(+n) : ""; }
+
+function guardarTx(){
+  const f = state.formTx;
+  if(!f.monto || !f.categoria) return;
+  const nueva = { id: Date.now().toString(), ...f, monto: parseInt(f.monto.replace(/\D/g,""),10) };
+  state.txs = [nueva, ...state.txs];
+  save("fp_txs", state.txs);
+  state.okMsg = true;
+  render();
+  setTimeout(()=>{ state.okMsg=false; state.formTx={tipo:"gasto",monto:"",categoria:"",descripcion:"",fecha:today()}; state.tab=0; render(); }, 900);
+}
+
+function renderNuevaTx(){
+  const f = state.formTx;
+  const catsFilt = state.cats.filter(c=>c.tipo===f.tipo);
+  const disabled = !f.monto || !f.categoria;
+  return `
+    <div style="font-size:18px;font-weight:600;margin-bottom:1.25rem;">Nueva transacción</div>
+    <div style="display:flex;background:${C.card};border-radius:12px;padding:4px;margin-bottom:1.25rem;gap:4px;">
+      ${["gasto","ingreso"].map(t=>`
+        <button onclick="setFormTx('tipo','${t}')" style="flex:1;padding:8px;border-radius:9px;border:none;cursor:pointer;font-weight:500;font-size:13px;
+          background:${f.tipo===t ? (t==="gasto"?C.red:C.accent) : "transparent"};
+          color:${f.tipo===t ? (t==="gasto"?"#fff":C.bg) : C.textMuted};">${t==="gasto"?"Gasto":"Ingreso"}</button>
+      `).join("")}
+    </div>
+
+    <div style="background:${C.card};border-radius:16px;padding:1.25rem;margin-bottom:1rem;">
+      <div style="font-size:11px;color:${C.textMuted};margin-bottom:6px;">Monto (COP)</div>
+      <input style="${inpStyle()}" placeholder="0" value="${f.monto}" oninput="setFormTx('monto', fmtInputVal(this.value))" />
+    </div>
+
+    <div style="background:${C.card};border-radius:16px;padding:1.25rem;margin-bottom:1rem;">
+      <div style="font-size:11px;color:${C.textMuted};margin-bottom:6px;">Categoría</div>
+      <select style="${inpStyle()}" onchange="setFormTx('categoria', this.value)">
+        <option value="">Selecciona una categoría</option>
+        ${catsFilt.map(c=>`<option value="${c.id}" ${f.categoria===c.id?"selected":""}>${esc(c.nombre)}</option>`).join("")}
+      </select>
+    </div>
+
+    <div style="background:${C.card};border-radius:16px;padding:1.25rem;margin-bottom:1rem;">
+      <div style="font-size:11px;color:${C.textMuted};margin-bottom:6px;">Descripción (opcional)</div>
+      <input style="${inpStyle()}" placeholder="Ej: Mercado del sábado" value="${esc(f.descripcion)}" oninput="setFormTx('descripcion', this.value)" />
+    </div>
+
+    <div style="background:${C.card};border-radius:16px;padding:1.25rem;margin-bottom:1.5rem;">
+      <div style="font-size:11px;color:${C.textMuted};margin-bottom:6px;">Fecha</div>
+      <input type="date" style="${inpStyle()}" value="${f.fecha}" oninput="setFormTx('fecha', this.value)" />
+    </div>
+
+    <button onclick="guardarTx()" ${disabled?"disabled":""} style="width:100%;padding:13px;border-radius:14px;border:none;cursor:${disabled?"default":"pointer"};font-weight:600;font-size:15px;
+      background:${state.okMsg ? "#34D399" : disabled ? "#1E2538" : C.accent};
+      color:${state.okMsg || disabled ? C.textMuted : C.bg};
+      box-shadow:${disabled?"":"0 0 20px "+C.accentBorder};">${state.okMsg ? "¡Guardado!" : "Guardar transacción"}</button>
+  `;
+}
+
+// ---------- Historial ----------
+function eliminarTx(id){ state.txs = state.txs.filter(t=>t.id!==id); save("fp_txs", state.txs); render(); }
+function setFiltro(k,v){ state[k]=v; render(); }
+
+function renderHistorial(){
+  const meses = Array.from(new Set(state.txs.map(t=>ymOf(t.fecha)))).sort().reverse();
+  const filtradas = state.txs.filter(t=>
+    (state.filtroMes==="todos"||ymOf(t.fecha)===state.filtroMes) &&
+    (state.filtroTipo==="todos"||t.tipo===state.filtroTipo)
+  );
+  return `
+    <div style="font-size:18px;font-weight:600;margin-bottom:1.25rem;">Historial</div>
+    <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap;">
+      <select style="${selStyle()}font-size:12px;" onchange="setFiltro('filtroMes', this.value)">
+        <option value="todos">Todos los meses</option>
+        ${meses.map(m=>`<option value="${m}" ${state.filtroMes===m?"selected":""}>${mesLabel(m)}</option>`).join("")}
+      </select>
+      <select style="${selStyle()}font-size:12px;" onchange="setFiltro('filtroTipo', this.value)">
+        <option value="todos">Todos</option>
+        <option value="gasto" ${state.filtroTipo==="gasto"?"selected":""}>Gastos</option>
+        <option value="ingreso" ${state.filtroTipo==="ingreso"?"selected":""}>Ingresos</option>
+      </select>
+    </div>
+    ${filtradas.length===0 ? `<div style="color:${C.textMuted};font-size:14px;text-align:center;padding:2rem 0;">Sin transacciones</div>` :
+      filtradas.map(t=>{
+        const cat = state.cats.find(c=>c.id===t.categoria);
+        return `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid ${C.border};">
+          <div style="width:36px;height:36px;border-radius:10px;background:${(cat?.color||"#888")}20;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <div style="width:9px;height:9px;border-radius:50%;background:${cat?.color||"#888"};"></div>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(t.descripcion||cat?.nombre||t.categoria)}</div>
+            <div style="font-size:11px;color:${C.textMuted};">${esc(cat?.nombre||"")} · ${t.fecha}</div>
+          </div>
+          <div style="font-size:13px;font-weight:600;color:${t.tipo==="ingreso"?C.accent:C.red};">${t.tipo==="ingreso"?"+":"-"}${fmt(t.monto)}</div>
+          <button onclick="eliminarTx('${t.id}')" style="background:none;border:none;color:${C.textMuted};cursor:pointer;font-size:18px;padding:0 4px;line-height:1;">×</button>
+        </div>`;
+      }).join("")}
+  `;
+}
+
+// ---------- Presupuestos ----------
+function setFormPres(k,v){ state.formPres = {...state.formPres, [k]:v}; render(); }
+function agregarPres(){
+  const f = state.formPres;
+  if(!f.categoria||!f.limite) return;
+  state.presupuestos = [...state.presupuestos, { id:Date.now().toString(), categoria:f.categoria, limite:parseInt(f.limite.replace(/\D/g,""),10), mes:state.mes, recurrente:f.recurrente }];
+  save("fp_presupuestos", state.presupuestos);
+  state.formPres = { categoria:"", limite:"", recurrente:false };
+  render();
+}
+function eliminarPres(id){ state.presupuestos = state.presupuestos.filter(p=>p.id!==id); save("fp_presupuestos", state.presupuestos); render(); }
+
+function renderPresupuestos(){
+  const f = state.formPres;
+  const catGastos = state.cats.filter(c=>c.tipo==="gasto");
+  const disabled = !f.categoria || !f.limite;
+  return `
+    <div style="font-size:18px;font-weight:600;margin-bottom:1.25rem;">Presupuestos</div>
+    <div style="background:${C.card};border-radius:16px;padding:1.25rem;margin-bottom:1.25rem;">
+      <div style="font-size:12px;color:${C.textMuted};margin-bottom:10px;">Nuevo para ${mesLabel(state.mes)}</div>
+      <select style="${inpStyle()}margin-bottom:8px;" onchange="setFormPres('categoria', this.value)">
+        <option value="">Selecciona categoría</option>
+        ${catGastos.map(c=>`<option value="${c.id}" ${f.categoria===c.id?"selected":""}>${esc(c.nombre)}</option>`).join("")}
+      </select>
+      <input style="${inpStyle()}margin-bottom:8px;" placeholder="Límite mensual (COP)" value="${f.limite}" oninput="setFormPres('limite', fmtInputVal(this.value))" />
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:${C.textSub};margin-bottom:12px;cursor:pointer;">
+        <input type="checkbox" ${f.recurrente?"checked":""} onchange="setFormPres('recurrente', this.checked)" /> Repetir todos los meses
+      </label>
+      <button onclick="agregarPres()" ${disabled?"disabled":""} style="width:100%;padding:10px;border-radius:10px;border:none;background:${disabled?"#1E2538":C.accent};color:${disabled?C.textMuted:C.bg};cursor:${disabled?"default":"pointer"};font-weight:600;font-size:13px;">Agregar presupuesto</button>
+    </div>
+    ${state.presupuestos.length===0 ? `<div style="color:${C.textMuted};font-size:14px;text-align:center;padding:1.5rem 0;">Sin presupuestos aún</div>` :
+      state.presupuestos.map(p=>{
+        const cat = state.cats.find(c=>c.id===p.categoria);
+        const gastado = state.txs.filter(t=>ymOf(t.fecha)===state.mes && t.tipo==="gasto" && t.categoria===p.categoria).reduce((s,t)=>s+t.monto,0);
+        const pct = Math.min(Math.round((gastado/p.limite)*100),100);
+        const col = pct>=100?C.red:pct>=80?C.yellow:C.accent;
+        return `<div style="background:${C.card};border-radius:14px;padding:1rem;margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div><span style="font-size:13px;font-weight:500;">${esc(cat?.nombre||"")}</span>${p.recurrente?`<span style="font-size:10px;color:${C.textMuted};margin-left:6px;">recurrente</span>`:""}</div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <span style="font-size:12px;font-weight:600;color:${col};">${pct}%</span>
+              <button onclick="eliminarPres('${p.id}')" style="background:none;border:none;color:${C.textMuted};cursor:pointer;font-size:16px;line-height:1;">×</button>
+            </div>
+          </div>
+          <div style="height:5px;border-radius:3px;background:${C.border};margin-bottom:6px;">
+            <div style="height:5px;border-radius:3px;width:${pct}%;background:${col};box-shadow:0 0 8px ${col}66;transition:width 0.3s;"></div>
+          </div>
+          <div style="font-size:11px;color:${C.textMuted};">${fmt(gastado)} de ${fmt(p.limite)}</div>
+        </div>`;
+      }).join("")}
+  `;
+}
+
+// ---------- Categorías ----------
+function setFormCat(k,v){ state.formCat = {...state.formCat, [k]:v}; render(); }
+function agregarCat(){
+  const f = state.formCat;
+  if(!f.nombre.trim()) return;
+  state.cats = [...state.cats, { id:Date.now().toString(), nombre:f.nombre.trim(), tipo:f.tipo, color:f.color }];
+  save("fp_cats", state.cats);
+  state.formCat = { nombre:"", tipo:"gasto", color:"#00E5A0" };
+  render();
+}
+function eliminarCat(id){ state.cats = state.cats.filter(c=>c.id!==id); save("fp_cats", state.cats); render(); }
+
+function renderCategorias(){
+  const f = state.formCat;
+  return `
+    <div style="font-size:18px;font-weight:600;margin-bottom:1.25rem;">Categorías</div>
+    <div style="background:${C.card};border-radius:16px;padding:1.25rem;margin-bottom:1.25rem;">
+      <div style="font-size:12px;color:${C.textMuted};margin-bottom:10px;">Nueva categoría</div>
+      <input style="${inpStyle()}margin-bottom:8px;" placeholder="Nombre" value="${esc(f.nombre)}" oninput="setFormCat('nombre', this.value)" />
+      <div style="display:flex;gap:8px;margin-bottom:8px;">
+        <select style="${inpStyle()}flex:1;" onchange="setFormCat('tipo', this.value)">
+          <option value="gasto" ${f.tipo==="gasto"?"selected":""}>Gasto</option>
+          <option value="ingreso" ${f.tipo==="ingreso"?"selected":""}>Ingreso</option>
+        </select>
+        <input type="color" value="${f.color}" oninput="setFormCat('color', this.value)" style="width:42px;height:42px;border:1px solid ${C.border};border-radius:10px;cursor:pointer;padding:3px;background:${C.surface};" />
+      </div>
+      <button onclick="agregarCat()" ${!f.nombre.trim()?"disabled":""} style="width:100%;padding:10px;border-radius:10px;border:none;background:${!f.nombre.trim()?"#1E2538":C.accent};color:${!f.nombre.trim()?C.textMuted:C.bg};cursor:pointer;font-weight:600;font-size:13px;">Agregar</button>
+    </div>
+    ${["gasto","ingreso"].map(tipo=>`
+      <div style="margin-bottom:1.25rem;">
+        <div style="font-size:11px;color:${C.textMuted};margin-bottom:8px;letter-spacing:1px;text-transform:uppercase;">${tipo==="gasto"?"Gastos":"Ingresos"}</div>
+        ${state.cats.filter(c=>c.tipo===tipo).map(c=>`
+          <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:${C.card};border-radius:10px;margin-bottom:6px;">
+            <div style="width:10px;height:10px;border-radius:3px;background:${c.color};flex-shrink:0;box-shadow:0 0 6px ${c.color}88;"></div>
+            <span style="flex:1;font-size:13px;">${esc(c.nombre)}</span>
+            ${!CATS_DEFAULT.find(d=>d.id===c.id) ? `<button onclick="eliminarCat('${c.id}')" style="background:none;border:none;color:${C.textMuted};cursor:pointer;font-size:16px;line-height:1;">×</button>` : ""}
+          </div>
+        `).join("")}
+      </div>
+    `).join("")}
+  `;
+}
+
+// ---------- estilos compartidos ----------
+function inpStyle(){
+  return `width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.05);color:#F0F4FF;font-size:14px;box-sizing:border-box;outline:none;`;
+}
+function selStyle(){
+  return `background:${C.card};color:${C.textSub};border:1px solid ${C.border};border-radius:10px;padding:6px 10px;font-size:12px;`;
+}
+
+render();
+
+// ---------- PWA: manifest + service worker inline ----------
+try {
+  const manifest = {
+    name: "Mis Finanzas",
+    short_name: "Finanzas",
+    start_url: ".",
+    display: "standalone",
+    background_color: "#0D1117",
+    theme_color: "#0D1117",
+    icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%230D1117'/%3E%3Ctext x='50' y='62' font-size='50' text-anchor='middle' fill='%2300E5A0'%3E$%3C/text%3E%3C/svg%3E", sizes: "100x100", type: "image/svg+xml" }]
+  };
+  const blob = new Blob([JSON.stringify(manifest)], { type: "application/json" });
+  const link = document.createElement("link");
+  link.rel = "manifest";
+  link.href = URL.createObjectURL(blob);
+  document.head.appendChild(link);
+} catch(e) {}
+
+if ("serviceWorker" in navigator) {
+  try {
+    const swCode = `
+      self.addEventListener("install", e => self.skipWaiting());
+      self.addEventListener("fetch", e => {
+        e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+      });
+    `;
+    const swBlob = new Blob([swCode], { type: "application/javascript" });
+    navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(()=>{});
+  } catch(e) {}
+}
+</script>
+</body>
+</html>

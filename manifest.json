@@ -1,0 +1,11 @@
+{
+  "name": "Mis Finanzas",
+  "short_name": "Finanzas",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0D1117",
+  "theme_color": "#0D1117",
+  "icons": [
+    { "src": "icon.svg", "sizes": "100x100", "type": "image/svg+xml" }
+  ]
+}
